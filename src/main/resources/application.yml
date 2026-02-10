@@ -1,0 +1,9 @@
+spring:
+  application:
+    name: k8s-leader-election
+
+leader:
+  election:
+    lease-duration: 15
+    renew-deadline: 10
+    retry-period: 2

@@ -1,4 +1,4 @@
-package com.galip.k8s_leader_election;
+package com.galip.k8sleaderelection;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
