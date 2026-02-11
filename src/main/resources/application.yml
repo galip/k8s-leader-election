@@ -2,8 +2,8 @@ spring:
   application:
     name: k8s-leader-election
 
-leader:
-  election:
-    lease-duration: 15
-    renew-deadline: 10
-    retry-period: 2
+leader-election:
+  namespace: default
+  lease-name: order-processor-leader
+  lease-duration-seconds: 15
+  renew-interval-seconds: 5
