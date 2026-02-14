@@ -1,112 +1,73 @@
 package com.galip.k8sleaderelection.elector;
 
-import com.galip.k8sleaderelection.listener.LeaderListener;
+import com.galip.k8sleaderelection.config.LeaderElectionProperties;
 import io.fabric8.kubernetes.api.model.coordination.v1.Lease;
 import io.fabric8.kubernetes.api.model.coordination.v1.LeaseBuilder;
 import io.fabric8.kubernetes.client.KubernetesClient;
-import jakarta.annotation.PostConstruct;
-import jakarta.annotation.PreDestroy;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-
-
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 @Component
 public class Fabric8LeaderElector {
 
     private final KubernetesClient client;
-    private final LeaderListener listener;
+    private final LeaderElectionProperties properties;
 
-    private final String namespace = "default";
-    private final String leaseName = "app-leader";
     private final String identity = UUID.randomUUID().toString();
 
-    private final int leaseDurationSeconds = 15;
-    private final int renewIntervalSeconds = 5;
+    private volatile boolean isLeader = false;
+    private volatile String currentLeader = null;
 
-    private final ScheduledExecutorService scheduler =
-            Executors.newSingleThreadScheduledExecutor();
-
-    private final AtomicBoolean leading = new AtomicBoolean(false);
-
-    public Fabric8LeaderElector(
-            KubernetesClient client,
-            LeaderListener listener
-    ) {
+    public Fabric8LeaderElector(KubernetesClient client,
+                                LeaderElectionProperties properties) {
         this.client = client;
-        this.listener = listener;
+        this.properties = properties;
     }
 
-    @PostConstruct
-    public void start() {
-        scheduler.scheduleWithFixedDelay(
-                this::elect,
-                0,
-                renewIntervalSeconds,
-                TimeUnit.SECONDS
-        );
-    }
-
-    @PreDestroy
-    public void shutdown() {
-        scheduler.shutdownNow();
-        if (leading.get()) {
-            listener.onStopLeading();
-        }
-    }
-
-    private void elect() {
+    @Scheduled(fixedDelayString = "${leader-election.renew-interval-seconds}000")
+    public void elect() {
         try {
 
             Lease lease = client.leases()
-                    .inNamespace(namespace)
-                    .withName(leaseName)
+                    .inNamespace(properties.getNamespace())
+                    .withName(properties.getLeaseName())
                     .get();
 
             if (lease == null) {
-                createLease();
                 return;
             }
 
-            String holder = lease.getSpec().getHolderIdentity();
+            String holderIdentity = lease.getSpec().getHolderIdentity();
 
-            if (isExpired(lease)) {
+            // Leader yoksa veya expired ise takeover dene
+            if (holderIdentity == null || isExpired(lease)) {
                 takeOver(lease);
-            } else if (identity.equals(holder)) {
-                renew(lease);
-            } else {
-                transitionToFollower(holder);
+                return;
             }
 
+            // Ben leader isem renew et
+            if (identity.equals(holderIdentity)) {
+                renew(lease);
+                return;
+            }
+
+            // Follower durumundayım
+            transitionToFollower(holderIdentity);
+
         } catch (Exception e) {
+            e.printStackTrace();
             transitionToFollower(null);
         }
     }
 
-    private void createLease() {
-
-        Lease lease = new LeaseBuilder()
-                .withNewMetadata()
-                .withName(leaseName)
-                .withNamespace(namespace)
-                .endMetadata()
-                .withNewSpec()
-                .withHolderIdentity(identity)
-                .withLeaseDurationSeconds(leaseDurationSeconds)
-                .withAcquireTime(ZonedDateTime.now(ZoneOffset.UTC))
-                .withRenewTime(ZonedDateTime.now(ZoneOffset.UTC))
-                .endSpec()
-                .build();
-
-        client.resource(lease).create();
-        transitionToLeader();
-    }
-
     private void takeOver(Lease lease) {
+
+        lease.getMetadata().setManagedFields(null);
 
         Lease updated = new LeaseBuilder(lease)
                 .editSpec()
@@ -116,28 +77,25 @@ public class Fabric8LeaderElector {
                 .endSpec()
                 .build();
 
-        client.resource(updated)
-                .lockResourceVersion(lease.getMetadata().getResourceVersion())
-                .replace();
+        client.resource(updated).replace();
 
         transitionToLeader();
     }
 
     private void renew(Lease lease) {
 
+        lease.getMetadata().setManagedFields(null);
+
         Lease updated = new LeaseBuilder(lease)
                 .editSpec()
                 .withRenewTime(ZonedDateTime.now(ZoneOffset.UTC))
                 .endSpec()
                 .build();
 
-        client.resource(updated)
-                .lockResourceVersion(lease.getMetadata().getResourceVersion())
-                .replace();
+        client.resource(updated).replace();
     }
 
     private boolean isExpired(Lease lease) {
-
         ZonedDateTime renewTime = lease.getSpec().getRenewTime();
         Integer duration = lease.getSpec().getLeaseDurationSeconds();
 
@@ -145,28 +103,32 @@ public class Fabric8LeaderElector {
             return true;
         }
 
-        ZonedDateTime expiry = renewTime.plusSeconds(duration);
-
-        return ZonedDateTime.now(ZoneOffset.UTC).isAfter(expiry);
+        return renewTime.plusSeconds(duration)
+                .isBefore(ZonedDateTime.now(ZoneOffset.UTC));
     }
 
     private void transitionToLeader() {
-        if (leading.compareAndSet(false, true)) {
-            listener.onStartLeading();
+        if (!isLeader) {
+            isLeader = true;
+            currentLeader = identity;
+            System.out.println("I am leader. Identity=" + identity + " — Starting scheduled jobs...");
         }
     }
 
-    private void transitionToFollower(String currentLeader) {
-        if (leading.compareAndSet(true, false)) {
-            listener.onStopLeading();
-        }
-        if (currentLeader != null) {
-            listener.onNewLeader(currentLeader);
-        }
-    }
+    private void transitionToFollower(String newLeader) {
 
-    public boolean isLeader() {
-        return leading.get();
+        // Leader değiştiyse 1 kere log bas
+        if (!Objects.equals(currentLeader, newLeader)) {
+            currentLeader = newLeader;
+
+            if (newLeader != null) {
+                System.out.println("New leader elected: " + newLeader);
+            }
+        }
+
+        if (isLeader) {
+            isLeader = false;
+            System.out.println("Leadership lost. Previous leader identity=" + identity + " — Stopping jobs...");
+        }
     }
 }
-

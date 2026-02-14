@@ -1,9 +1,7 @@
 package com.galip.k8sleaderelection.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.context.annotation.Configuration;
 
-@Configuration
 @ConfigurationProperties(prefix = "leader-election")
 public class LeaderElectionProperties {
 
