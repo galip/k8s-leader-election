@@ -1,6 +1,5 @@
 package com.galip.k8sleaderelection;
 
-import com.galip.k8sleaderelection.config.LeaderElectionProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.SpringApplication;

@@ -4,5 +4,4 @@ metadata:
   name: order-processor-leader
   namespace: default
 spec:
-  holderIdentity: ""
   leaseDurationSeconds: 15
