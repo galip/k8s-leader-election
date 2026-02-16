@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Objects;
@@ -18,6 +19,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 @Component
 public class Fabric8LeaderElector {
+
+    private static final int GRACE_SECONDS = 2;
 
     private static final Logger log = LoggerFactory.getLogger(Fabric8LeaderElector.class);
 
@@ -176,24 +179,32 @@ public class Fabric8LeaderElector {
             return true;
         }
 
-        String holderIdentity = lease.getSpec().getHolderIdentity();
         ZonedDateTime renewTime = lease.getSpec().getRenewTime();
         Integer duration = lease.getSpec().getLeaseDurationSeconds();
 
-        if (holderIdentity == null || holderIdentity.isBlank()) {
+        if (renewTime == null || duration == null) {
             return true;
         }
 
-        if (duration == null || duration <= 0) {
-            return true;
+        ZonedDateTime expiryTime = renewTime
+                .plusSeconds(duration)
+                .plusSeconds(GRACE_SECONDS);
+
+
+        ZonedDateTime now = now();
+        boolean expired = now.isAfter(expiryTime);
+        log.info("Lease timing -> renew={}, duration={}, expiry={}, now={}",
+                renewTime,
+                duration,
+                expired,
+                now);
+
+        if (expired) {
+            log.info("Lease expired. renewTime={}, duration={}s, now={}",
+                    renewTime, duration, now());
         }
 
-        if (renewTime == null) {
-            return true;
-        }
-
-        return renewTime.plusSeconds(duration)
-                .isBefore(now());
+        return expired;
     }
 
 
@@ -208,5 +219,9 @@ public class Fabric8LeaderElector {
             lease.getMetadata().setManagedFields(null);
             lease.getMetadata().setAnnotations(null);
         }
+    }
+
+    public boolean isLeader() {
+        return leader.get();
     }
 }
