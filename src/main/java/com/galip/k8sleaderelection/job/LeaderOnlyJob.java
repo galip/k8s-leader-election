@@ -17,11 +17,11 @@ public class LeaderOnlyJob {
         this.elector = elector;
     }
 
-    @Scheduled(fixedDelay = 5000)
+    @Scheduled(fixedDelay = 5000, scheduler = "jobScheduler")
     public void run() throws InterruptedException {
 
         if (!elector.isLeader()) {
-            log.debug("Skipping execution — not leader");
+            log.info("Skipping execution — not leader");
             return;
         }
         log.info("Leader executing scheduled job");

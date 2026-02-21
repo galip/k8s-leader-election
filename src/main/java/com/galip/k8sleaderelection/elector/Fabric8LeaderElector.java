@@ -10,7 +10,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Objects;
@@ -41,7 +40,8 @@ public class Fabric8LeaderElector {
         log.info("Leader elector started. Identity={}", identity);
     }
 
-    @Scheduled(fixedDelayString = "${leader-election.renew-interval-seconds}000")
+    @Scheduled(fixedDelayString = "${leader-election.renew-interval-seconds}000",
+               scheduler = "leaderElectionScheduler")
     public void elect() {
 
         try {
