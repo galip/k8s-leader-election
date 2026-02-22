@@ -34,6 +34,10 @@ public class Fabric8LeaderElector {
 
     private final AtomicBoolean electionRunning = new AtomicBoolean(false);
 
+    private static final int HTTP_CONFLICT = 409;
+    private static final int HTTP_NOT_FOUND = 404;
+    private static final int HTTP_GONE = 410;
+
     public Fabric8LeaderElector(KubernetesClient client,
                                 LeaderElectionProperties properties) {
         this.client = client;
@@ -148,21 +152,38 @@ public class Fabric8LeaderElector {
 
     private void renew(Lease lease) {
 
-        String resourceVersion = lease.getMetadata().getResourceVersion();
+        if (!identity.equals(lease.getSpec().getHolderIdentity())) {
+            log.warn("Skipping renew, not holder anymore. holder={}",
+                    lease.getSpec().getHolderIdentity());
+            return;
+        }
 
-        Lease updated = new LeaseBuilder(lease)
-                .editMetadata()
-                .withResourceVersion(resourceVersion)
-                .endMetadata()
-                .editSpec()
-                .withRenewTime(now())
-                .endSpec()
-                .build();
+        try{
+            String resourceVersion = lease.getMetadata().getResourceVersion();
 
-        sanitize(updated);
+            Lease updated = new LeaseBuilder(lease)
+                    .editMetadata()
+                    .withResourceVersion(resourceVersion)
+                    .endMetadata()
+                    .editSpec()
+                    .withRenewTime(now())
+                    .endSpec()
+                    .build();
 
-        client.resource(updated).replace();
-        log.info("Lease renewed by {}", identity);
+            sanitize(updated);
+
+            client.resource(updated).replace();
+            log.info("Lease renewed by {}", identity);
+        } catch (KubernetesClientException e) {
+
+            int code = e.getCode();
+            if (code == HTTP_CONFLICT || code == HTTP_NOT_FOUND || code == HTTP_GONE) {
+                log.warn("Renew failed — leadership lost. code={}", code);
+                transitionToFollower(null);
+            } else {
+                log.error("Renew failed but keeping leadership. code={}", code, e);
+            }
+        }
     }
 
     private void transitionToLeader() {
