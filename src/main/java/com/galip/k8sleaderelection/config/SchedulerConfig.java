@@ -13,7 +13,7 @@ public class SchedulerConfig {
 
         ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
         scheduler.setPoolSize(1);
-        scheduler.setThreadNamePrefix("leader-election-");
+        scheduler.setThreadNamePrefix("leader-elect-");
         scheduler.initialize();
 
         return scheduler;

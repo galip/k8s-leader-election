@@ -5,5 +5,4 @@ spring:
 leader-election:
   namespace: default
   lease-name: order-processor-leader
-  lease-duration-seconds: 30
   renew-interval-seconds: 10

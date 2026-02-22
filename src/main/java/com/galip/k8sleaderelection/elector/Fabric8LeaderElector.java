@@ -32,6 +32,8 @@ public class Fabric8LeaderElector {
 
     private volatile String currentLeaderIdentity = null;
 
+    private final AtomicBoolean electionRunning = new AtomicBoolean(false);
+
     public Fabric8LeaderElector(KubernetesClient client,
                                 LeaderElectionProperties properties) {
         this.client = client;
@@ -44,7 +46,14 @@ public class Fabric8LeaderElector {
                scheduler = "leaderElectionScheduler")
     public void elect() {
 
+        log.info("Leader election cycle started...");
+
         try {
+
+            if (!electionRunning.compareAndSet(false, true)) {
+                log.info("Election already running, skipping");
+                return;
+            }
 
             Lease lease = client.leases()
                     .inNamespace(properties.getNamespace())
@@ -63,14 +72,23 @@ public class Fabric8LeaderElector {
 
             boolean expired = isExpired(lease);
 
-            if (holderIdentity == null || expired) {
+            if (holderIdentity == null || holderIdentity.isBlank() || expired) {
 
                 boolean success = attemptTakeover(lease);
 
                 if (success) {
                     transitionToLeader();
                 } else {
-                    transitionToFollower(holderIdentity);
+
+                    Lease latestLease = client.leases()
+                                    .inNamespace(properties.getNamespace())
+                                            .withName(properties.getLeaseName())
+                                                    .get();
+
+                    String latestHolder = latestLease != null && latestLease.getSpec() != null
+                            ? latestLease.getSpec().getHolderIdentity() : null;
+
+                    transitionToFollower(latestHolder);
                 }
 
                 return;
@@ -93,6 +111,8 @@ public class Fabric8LeaderElector {
 
             log.error("Leader election error", e);
             transitionToFollower(null);
+        } finally {
+            electionRunning.set(false);
         }
     }
 
@@ -191,9 +211,9 @@ public class Fabric8LeaderElector {
                 .plusSeconds(GRACE_SECONDS);
 
 
-        ZonedDateTime now = now();
+        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         boolean expired = now.isAfter(expiryTime);
-        log.info("Lease timing -> renew={}, duration={}, expiry={}, now={}",
+        log.info("Lease timing -> renew={}, duration={}, expired={}, now={}",
                 renewTime,
                 duration,
                 expired,
@@ -201,7 +221,7 @@ public class Fabric8LeaderElector {
 
         if (expired) {
             log.info("Lease expired. renewTime={}, duration={}s, now={}",
-                    renewTime, duration, now());
+                    renewTime, duration, now);
         }
 
         return expired;

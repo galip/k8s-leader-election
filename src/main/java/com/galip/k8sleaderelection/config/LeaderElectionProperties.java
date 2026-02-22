@@ -7,7 +7,6 @@ public class LeaderElectionProperties {
 
     private String namespace;
     private String leaseName;
-    private int leaseDurationSeconds;
     private int renewIntervalSeconds;
 
     public String getNamespace() { return namespace; }
@@ -15,9 +14,6 @@ public class LeaderElectionProperties {
 
     public String getLeaseName() { return leaseName; }
     public void setLeaseName(String leaseName) { this.leaseName = leaseName; }
-
-    public int getLeaseDurationSeconds() { return leaseDurationSeconds; }
-    public void setLeaseDurationSeconds(int leaseDurationSeconds) { this.leaseDurationSeconds = leaseDurationSeconds; }
 
     public int getRenewIntervalSeconds() { return renewIntervalSeconds; }
     public void setRenewIntervalSeconds(int renewIntervalSeconds) { this.renewIntervalSeconds = renewIntervalSeconds; }
