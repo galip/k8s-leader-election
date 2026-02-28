@@ -6,3 +6,12 @@ leader-election:
   namespace: default
   lease-name: order-processor-leader
   renew-interval-seconds: 10
+
+  config:
+    activate:
+      on-profile: demo
+
+logging:
+  level:
+    root: INFO
+    com.galip.k8sleaderelection: DEBUG

@@ -50,7 +50,7 @@ public class Fabric8LeaderElector {
                scheduler = "leaderElectionScheduler")
     public void elect() {
 
-        log.info("Leader election cycle started...");
+        log.debug("Leader election cycle started...");
 
         try {
 
@@ -145,8 +145,13 @@ public class Fabric8LeaderElector {
 
         } catch (KubernetesClientException e) {
 
-            log.debug("Takeover failed due to conflict");
-            return false;
+            if (e.getCode() == HTTP_CONFLICT) {
+                log.debug("Takeover conflict — lost race");
+                return false;
+            }
+
+            log.error("Takeover failed unexpectedly", e);
+            throw e;
         }
     }
 
@@ -173,7 +178,7 @@ public class Fabric8LeaderElector {
             sanitize(updated);
 
             client.resource(updated).replace();
-            log.info("Lease renewed by {}", identity);
+            log.debug("Lease renewed by {}", identity);
         } catch (KubernetesClientException e) {
 
             int code = e.getCode();
@@ -234,7 +239,7 @@ public class Fabric8LeaderElector {
 
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         boolean expired = now.isAfter(expiryTime);
-        log.info("Lease timing -> renew={}, duration={}, expired={}, now={}",
+        log.debug("Lease timing -> renew={}, duration={}, expired={}, now={}",
                 renewTime,
                 duration,
                 expired,
