@@ -90,6 +90,6 @@ Run multiple instances to observe behavior.
 
 # Key Guarantees
 
-✔ Single active leader
-✔ Safe failover
-✔ No duplicate job execution
+* Single active leader
+* Safe failover
+* No duplicate job execution
