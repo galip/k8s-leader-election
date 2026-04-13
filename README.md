@@ -26,7 +26,7 @@ Leader election ensures that **only one instance (leader)** executes these tasks
 
 # Important
 
-> Leadership is **not rotated periodically**
+Leadership is **not rotated periodically**
 
 Leader changes only when:
 
@@ -44,7 +44,7 @@ Leader changes only when:
 
 ---
 
-# ⚙️ Configuration
+# Configuration
 
 ### application.yml
 
