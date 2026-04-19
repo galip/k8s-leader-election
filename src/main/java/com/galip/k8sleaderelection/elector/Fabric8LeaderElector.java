@@ -60,12 +60,12 @@ public class Fabric8LeaderElector {
             }
 
             Lease lease = client.leases()
-                    .inNamespace(properties.getNamespace())
-                    .withName(properties.getLeaseName())
+                    .inNamespace(properties.namespace())
+                    .withName(properties.leaseName())
                     .get();
 
             if (lease == null) {
-                log.warn("Lease not found -> {} / {}", properties.getNamespace(), properties.getLeaseName());
+                log.warn("Lease not found -> {} / {}", properties.namespace(), properties.leaseName());
                 transitionToFollower(null);
                 return;
             }
@@ -85,8 +85,8 @@ public class Fabric8LeaderElector {
                 } else {
 
                     Lease latestLease = client.leases()
-                                    .inNamespace(properties.getNamespace())
-                                            .withName(properties.getLeaseName())
+                                    .inNamespace(properties.namespace())
+                                            .withName(properties.leaseName())
                                                     .get();
 
                     String latestHolder = latestLease != null && latestLease.getSpec() != null
@@ -109,7 +109,7 @@ public class Fabric8LeaderElector {
 
         } catch (KubernetesClientException e) {
 
-            log.warn("Leader election conflict (expected race). {}", e.getMessage());
+            log.error("Leader election conflict (expected race). {}", e.getMessage());
 
         } catch (Exception e) {
 
@@ -230,6 +230,11 @@ public class Fabric8LeaderElector {
 
         if (renewTime == null || duration == null) {
             return true;
+        }
+
+        if (duration != properties.leaseDurationSeconds()) {
+            log.warn("Lease duration mismatch! cluster={}, app={}",
+                    duration, properties.leaseDurationSeconds());
         }
 
         ZonedDateTime expiryTime = renewTime

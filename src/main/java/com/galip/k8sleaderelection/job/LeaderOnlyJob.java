@@ -24,8 +24,18 @@ public class LeaderOnlyJob {
             log.info("Skipping execution — not leader");
             return;
         }
+
         log.info("Leader executing scheduled job");
-        simulateWork();
+
+        try {
+            simulateWork();
+        } finally {
+            if(!elector.isLeader()){
+                log.info("Skipping execution — not leader");
+                return;
+            }
+        }
+
         log.info("Leader completed scheduled job");
     }
 
