@@ -3,7 +3,7 @@ spring:
     name: k8s-leader-election
 
 leader-election:
-  namespace: default
+  namespace: leader-election
   lease-name: order-processor-leader
   renew-interval-seconds: 10
   lease-duration-seconds: 30

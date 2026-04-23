@@ -52,6 +52,12 @@ public class Fabric8LeaderElector {
 
         log.debug("Leader election cycle started...");
 
+        if (!isKubernetesAvailable()) {
+            log.warn("Kubernetes not reachable — skipping leader election");
+            transitionToFollower(null);
+            return;
+        }
+
         try {
 
             if (!electionRunning.compareAndSet(false, true)) {
@@ -274,5 +280,14 @@ public class Fabric8LeaderElector {
 
     public boolean isLeader() {
         return leader.get();
+    }
+
+    private boolean isKubernetesAvailable() {
+        try {
+            client.pods().list();
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
     }
 }
